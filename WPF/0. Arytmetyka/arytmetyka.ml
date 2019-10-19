@@ -40,6 +40,7 @@ let sr_wartosc x =
     if mini = neg_infinity && maks = infinity then nan
     else (mini +. maks) /. 2.0
 
+(* Zwraca sume zbiorow x i y *)
 let rec union x y =
     match x, y with
     | Jeden a, Jeden b -> if b.l < a.l then union y x
@@ -60,9 +61,8 @@ let rec plus x y =
 
     match x, y with
     | Jeden a, Jeden c -> pom a c
-    | Jeden a, Dwa (c, d) -> union (pom a c) (pom a d)
-    | Dwa (a, b), Jeden c -> plus y x
-    | Dwa (_, _), Dwa (_, _) -> Jeden {l = neg_infinity; r = infinity}
+    | Jeden a, Dwa (c, d) -> union (plus x (Jeden c)) (plus x (Jeden d))
+    | Dwa (a, b), _ -> union (plus (Jeden a) y) (plus (Jeden b) y)
     | _, _ -> Pusta
 
 let rec minus x y =
@@ -72,9 +72,8 @@ let rec minus x y =
 
     match x, y with
     | Jeden a, Jeden c -> pom a c
-    | Jeden a, Dwa (c, d) -> union (pom a c) (pom a d)
-    | Dwa (a, b), Jeden c -> union (pom a c) (pom b c)
-    | Dwa (_, _), Dwa (_, _) -> Jeden {l = neg_infinity; r = infinity}
+    | Jeden _, Dwa (c, d) -> union (minus x (Jeden c)) (minus x (Jeden d))
+    | Dwa (a, b), _-> union (minus (Jeden a) y) (minus (Jeden b) y)
     | _, _ -> Pusta
 
 let rec razy x y =
@@ -85,12 +84,6 @@ let rec razy x y =
             union (pom {a with r = -0.} b) (pom {a with l = 0.} b)
         else if b.l *. b.r < 0. then
             union (pom a {b with r = -0.}) (pom a {b with l = 0.})
-        else if a.l = neg_infinity then
-            if b.r <= 0. then Jeden {l = a.r *. b.r; r = infinity}
-            else Jeden {l = neg_infinity; r = a.r *. b.l}
-        else if a.r = infinity then
-            if b.r <= 0. then Jeden {l = neg_infinity; r = a.l *. b.r}
-            else Jeden {l = a.l *. b.l; r = infinity}
         else if a.l < 0. then
             if b.r <= 0. then Jeden {l = a.r *. b.r; r = a.l *. b.l}
             else Jeden {l = a.l *. b.r; r = a.r *. b.l}
@@ -101,7 +94,6 @@ let rec razy x y =
     match x, y with
     | Jeden a, Jeden c -> pom a c
     | Jeden _, Dwa (c, d) -> union (razy x (Jeden c)) (razy x (Jeden d))
-    | _, Jeden _ -> razy y x
     | Dwa (a, b), _ -> union (razy (Jeden a) y) (razy (Jeden b) y)
     | _, _ -> Pusta
 
@@ -113,12 +105,6 @@ let rec podzielic x y =
             union (pom {a with r = -0.} b) (pom {a with l = 0.} b)
         else if b.l *. b.r < 0. then
             union (pom a {b with r = -0.}) (pom a {b with l = 0.})
-        else if a.l = neg_infinity then
-            if b.r <= 0. then Jeden {l = a.r /. b.l; r = infinity}
-            else Jeden {l = neg_infinity; r = a.r /. b.r}
-        else if a.r = infinity then
-            if b.r <= 0. then Jeden {l = neg_infinity; r = a.l /. b.l}
-            else Jeden {l = a.l /. b.r; r = infinity}
         else if a.l < 0. then
             if b.r <= 0. then Jeden {l = a.r /. b.l; r = a.l /. b.r}
             else Jeden {l = a.l /. b.l; r = a.r /. b.r}
