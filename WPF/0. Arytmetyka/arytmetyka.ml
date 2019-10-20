@@ -1,7 +1,7 @@
 (* Typ reprezentujący jednoczęściowy zbiór liczb. *)
 type interval = {l : float; r : float}
 type wartosc =
-    | Pusty                         (* Zbiór przedział.      *)
+    | Pusty                         (* Zbiór pusty.      *)
     | Jeden of interval             (* Zbiór jednoczęściowy. *)
     | Dwa of interval * interval    (* Zbiór dwuczęściowy.   *)
 
