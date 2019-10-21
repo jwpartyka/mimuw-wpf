@@ -1,55 +1,75 @@
 (* Typ reprezentujący jednoczęściowy zbiór liczb. *)
 type interval = {l : float; r : float}
-type wartosc =
-    | Pusty                         (* Zbiór pusty.      *)
-    | Jeden of interval             (* Zbiór jednoczęściowy. *)
-    | Dwa of interval * interval    (* Zbiór dwuczęściowy.   *)
 
+(* Typ reprezentujący niedokładne wartości *)
+type wartosc =
+    (* Zbiór pusty.          *)
+    | Pusty
+    (* Zbiór jednoczęściowy. *)
+    | Jeden of interval
+    (* Zbiór dwuczęściowy.   *)
+    | Dwa of interval * interval
+
+(* wartosc_dokladnosc x p = x +/- p% z x *)
+(* war. pocz.: p > 0                     *)
 let wartosc_dokladnosc x p =
     let procent = abs_float ((p /. 100.) *. x) in
     if x -. procent < 0. && x +. procent = 0. then
         Jeden {l = x -. procent; r = -0.}
     else Jeden {l = x -. procent; r = x +. procent}
 
+(* wartosc_od_do x y = [x; y] *)
+(* war. pocz.: x <= y         *)
 let wartosc_od_do x y =
-    if x < 0. && y = 0. then Jeden {l = x; r = -0.} else Jeden {l = x; r = y}
+    if x < 0. && y = 0. then Jeden {l = x; r = -0.}
+    else Jeden {l = x; r = y}
 
+(* wartosc dokladna x = [x; x] *)
 let wartosc_dokladna x =
     Jeden {l = x; r = x}
 
+(* in_wartosc w x = w może przyjąć wartość x *)
 let in_wartosc x y =
     match x with
     | Jeden a -> a.l <= y && y <= a.r
     | Dwa (a, b) -> (a.l <= y && y <= a.r) || (b.l <= y && y <= b.r)
     | Pusty -> false
 
+(* min_wartosc w = najmniejsza możliwa wartość w,    *)
+(* lub neg_infinity jeśli brak dolnego ograniczenia. *)
 let min_wartosc x =
     match x with
     | Jeden a -> a.l
     | Dwa (a, _) -> a.l
     | Pusty -> nan
 
+(* max_wartosc w = największa możliwa wartość w, *)
+(* lub infinity jeśli brak górnego ograniczenia. *)
 let max_wartosc x =
     match x with
     | Jeden a -> a.r
     | Dwa (_, b) -> b.r
     | Pusty -> nan
 
+(* sr_wartosc x = srednia arytmetyczna min_wartosc w i max_wartosc w *)
+(* lub nan jeśli min_wartosc w i max_wartosc w nie są skończone.     *)
 let sr_wartosc x =
-    if x = Pusty then nan else
-    let (mini, maks) = (min_wartosc x, max_wartosc x) in
-    if mini = neg_infinity && maks = infinity then nan
-    else (mini +. maks) /. 2.0
+    if x = Pusty then nan
+    else
+        let (mini, maks) = (min_wartosc x, max_wartosc x) in
+        if mini = neg_infinity && maks = infinity then nan
+        else (mini +. maks) /. 2.
 
-(* Procedura, która zwraca sumę zbiorów wartości niedokładnych x i y. *)
+(* union x y = {t : in_wartosc x t lub in_wartosc y t} *)
+(* x, y - wartości niedokładne                         *)
 let rec union x y =
-    (* Pomocnicza procedura, która sumuje dwa jednoczęściowe zbiory. *)
+    (* pom a b = union a b *)
+    (* a i b są typu Jeden *)
     let rec pom a b =
         if b.l < a.l then pom b a
         else if a.l <= b.l && b.r <= a.r then Jeden a
         else if b.l <= a.r then Jeden {a with r = b.r}
         else Dwa (a, b) in
-
     match x, y with
     | Jeden a, Jeden b -> pom a b
     | Jeden a, Dwa (c, d) -> union (union x (Jeden c)) (Jeden d)
@@ -59,35 +79,44 @@ let rec union x y =
     | Pusty, _ -> y
     | _, Pusty -> x
 
-let rec plus x y =
-    (* Pomocnicza procedura, która wykonuje operację plus a b *)
-    (* na dwóch jednoczęściowych zbiorach a i b.              *)
+(* Procedura pomocnicza do procedur plus/minus/razy/podzielic, *)
+(* która wykonuje procedurę f na parach jednoczęściowych       *)
+(* przedziałów, takich, że jeden należy do x, a drugi do y     *)
+(* f - procedura pomocnicza procedur plus/minus/razy/podzielic *)
+(* x, y - wartości niedokładne                                 *)
+let rec operacja f x y =
+    match x, y with
+    | Jeden a, Jeden c -> f a c
+    | Jeden a, Dwa (c, d) ->
+        union (operacja f x (Jeden c)) (operacja f x (Jeden d))
+    | Dwa (a, b), _ ->
+        union (operacja f (Jeden a) y) (operacja f (Jeden b) y)
+    | _, _ -> Pusty
+
+(* plus x y = {a + b : in_wartosc x a i in_wartosc y b} *)
+let plus x y =
+    (* pom a b = plus a b  *)
+    (* a i b są typu Jeden *)
     let pom a b =
         if a.r +. b.r = 0. then Jeden {l = a.l +. b.l; r = -0.}
         else Jeden {l = a.l +. b.l; r = a.r +. b.r} in
+    operacja pom x y
 
-    match x, y with
-    | Jeden a, Jeden c -> pom a c
-    | Jeden a, Dwa (c, d) -> union (plus x (Jeden c)) (plus x (Jeden d))
-    | Dwa (a, b), _ -> union (plus (Jeden a) y) (plus (Jeden b) y)
-    | _, _ -> Pusty
-
-let rec minus x y =
-    (* Pomocnicza procedura, która wykonuje operację minus a b *)
-    (* na dwóch jednoczęściowych zbiorach a i b.               *)
+(* minus x y = {a - b : in_wartosc x a i in_wartosc y b} *)
+let minus x y =
+    (* pom a b = minus a b *)
+    (* a i b są typu Jeden *)
     let pom a b =
         if a.r -. b.l = 0. then Jeden {l = a.l -. b.r; r = -0.}
         else Jeden {l = a.l -. b.r; r = a.r -. b.l} in
+    operacja pom x y
 
-    match x, y with
-    | Jeden a, Jeden c -> pom a c
-    | Jeden _, Dwa (c, d) -> union (minus x (Jeden c)) (minus x (Jeden d))
-    | Dwa (a, b), _-> union (minus (Jeden a) y) (minus (Jeden b) y)
-    | _, _ -> Pusty
-
-let rec razy x y =
-    (* Pomocnicza procedura, która wykonuje operację razy a b *)
-    (* na dwóch jednoczęściowych zbiorach a i b.              *)
+(* razy x y = {a * b : in_wartosc x a i in_wartosc y b} *)
+let razy x y =
+    (* pom a b = razy a b                                          *)
+    (* a i b są typu Jeden                                         *)
+    (* Jeżeli, zbiór (l, r) zawiera i ujemne, i dodatnie wartości, *)
+    (* to zostaje on podzielony na dwa zbiory: (l; -0.) i (0.; r)  *)
     let rec pom a b =
         if a = {l = 0.; r = 0.} || b = {l = 0.; r = 0.} then
             Jeden {l = 0.; r = 0.}
@@ -101,16 +130,14 @@ let rec razy x y =
         else
             if b.r <= 0. then Jeden {l = a.r *. b.l; r = a.l *. b.r}
             else Jeden {l = a.l *. b.l; r = a.r *. b.r} in
+    operacja pom x y
 
-    match x, y with
-    | Jeden a, Jeden c -> pom a c
-    | Jeden _, Dwa (c, d) -> union (razy x (Jeden c)) (razy x (Jeden d))
-    | Dwa (a, b), _ -> union (razy (Jeden a) y) (razy (Jeden b) y)
-    | _, _ -> Pusty
-
-let rec podzielic x y =
-    (* Pomocnicza procedura, która wykonuje operację podzielic a b *)
-    (* na dwóch jednoczęściowych zbiorach a i b .                  *)
+(* podzielic x y = {a / b : in_wartosc x a i in_wartosc y b} *)
+let podzielic x y =
+    (* pom a b = podzielic a b                                     *)
+    (* a i b są typu Jeden                                         *)
+    (* Jeżeli, zbiór (l, r) zawiera i ujemne, i dodatnie wartości, *)
+    (* to zostaje on podzielony na dwa zbiory: (l; -0.) i (0.; r)  *)
     let rec pom a b =
         if b = {l = 0.; r = 0.} then Pusty
         else if a = {l = 0.; r = 0.} then Jeden {l = 0.; r = 0.}
@@ -124,10 +151,4 @@ let rec podzielic x y =
         else
             if b.r <= 0. then Jeden {l = a.r /. b.r; r = a.l /. b.l}
             else Jeden {l = a.l /. b.r; r = a.r /. b.l} in
-
-    match x, y with
-    | Jeden a, Jeden c -> pom a c
-    | Jeden _, Dwa (c, d) ->
-        union (podzielic x (Jeden c)) (podzielic x (Jeden d))
-    | Dwa (a, b), _ -> union (podzielic (Jeden a) y) (podzielic (Jeden b) y)
-    | _, _ -> Pusty
+    operacja pom x y
