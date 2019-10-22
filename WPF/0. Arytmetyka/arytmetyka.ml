@@ -1,7 +1,7 @@
 (* Typ reprezentujący jednoczęściowy zbiór liczb. *)
 type interval = {l : float; r : float}
 
-(* Typ reprezentujący niedokładne wartości *)
+(* Typ reprezentujący niedokładne wartości. *)
 type wartosc =
     (* Zbiór pusty.          *)
     | Pusty
@@ -10,8 +10,8 @@ type wartosc =
     (* Zbiór dwuczęściowy.   *)
     | Dwa of interval * interval
 
-(* wartosc_dokladnosc x p = x +/- p% z x *)
-(* war. pocz.: p > 0                     *)
+(* wartosc_dokladnosc x p = [x - p% z x; x + p% z x] *)
+(* war. pocz.: p > 0                                 *)
 let wartosc_dokladnosc x p =
     let procent = abs_float ((p /. 100.) *. x) in
     if x -. procent < 0. && x +. procent = 0. then
@@ -28,14 +28,14 @@ let wartosc_od_do x y =
 let wartosc_dokladna x =
     Jeden {l = x; r = x}
 
-(* in_wartosc w x = w może przyjąć wartość x *)
+(* in_wartosc x y = wartość x może być równa y *)
 let in_wartosc x y =
     match x with
     | Jeden a -> a.l <= y && y <= a.r
     | Dwa (a, b) -> (a.l <= y && y <= a.r) || (b.l <= y && y <= b.r)
     | Pusty -> false
 
-(* min_wartosc w = najmniejsza możliwa wartość w,    *)
+(* min_wartosc x = najmniejsza możliwa wartość x,    *)
 (* lub neg_infinity jeśli brak dolnego ograniczenia. *)
 let min_wartosc x =
     match x with
@@ -43,7 +43,7 @@ let min_wartosc x =
     | Dwa (a, _) -> a.l
     | Pusty -> nan
 
-(* max_wartosc w = największa możliwa wartość w, *)
+(* max_wartosc x = największa możliwa wartość x, *)
 (* lub infinity jeśli brak górnego ograniczenia. *)
 let max_wartosc x =
     match x with
@@ -51,8 +51,8 @@ let max_wartosc x =
     | Dwa (_, b) -> b.r
     | Pusty -> nan
 
-(* sr_wartosc x = srednia arytmetyczna min_wartosc w i max_wartosc w *)
-(* lub nan jeśli min_wartosc w i max_wartosc w nie są skończone.     *)
+(* sr_wartosc x = srednia arytmetyczna min_wartosc x i max_wartosc x *)
+(* lub nan jeśli min_wartosc x i max_wartosc x nie są skończone.     *)
 let sr_wartosc x =
     if x = Pusty then nan
     else
@@ -63,8 +63,8 @@ let sr_wartosc x =
 (* union x y = {t : in_wartosc x t lub in_wartosc y t} *)
 (* x, y - wartości niedokładne                         *)
 let rec union x y =
-    (* pom a b = union a b *)
-    (* a i b są typu Jeden *)
+    (* pom a b = union (Jeden a) (Jeden b) *)
+    (* a i b są typu interval.             *)
     let rec pom a b =
         if b.l < a.l then pom b a
         else if a.l <= b.l && b.r <= a.r then Jeden a
@@ -81,9 +81,9 @@ let rec union x y =
 
 (* Procedura pomocnicza do procedur plus/minus/razy/podzielic, *)
 (* która wykonuje procedurę f na parach jednoczęściowych       *)
-(* przedziałów, takich, że jeden należy do x, a drugi do y     *)
+(* zbiorów, takich, że jeden zawiera się w x, a drugi w y.     *)
 (* f - procedura pomocnicza procedur plus/minus/razy/podzielic *)
-(* x, y - wartości niedokładne                                 *)
+(* x, y - wartości niedokładne     .                           *)
 let rec operacja f x y =
     match x, y with
     | Jeden a, Jeden c -> f a c
@@ -95,8 +95,8 @@ let rec operacja f x y =
 
 (* plus x y = {a + b : in_wartosc x a i in_wartosc y b} *)
 let plus x y =
-    (* pom a b = plus a b  *)
-    (* a i b są typu Jeden *)
+    (* pom a b = plus (Jeden a) (Jeden b) *)
+    (* a i b są typu interval.            *)
     let pom a b =
         if a.r +. b.r = 0. then Jeden {l = a.l +. b.l; r = -0.}
         else Jeden {l = a.l +. b.l; r = a.r +. b.r} in
@@ -104,8 +104,8 @@ let plus x y =
 
 (* minus x y = {a - b : in_wartosc x a i in_wartosc y b} *)
 let minus x y =
-    (* pom a b = minus a b *)
-    (* a i b są typu Jeden *)
+    (* pom a b = minus (Jeden a) (Jeden b) *)
+    (* a i b są typu interval.             *)
     let pom a b =
         if a.r -. b.l = 0. then Jeden {l = a.l -. b.r; r = -0.}
         else Jeden {l = a.l -. b.r; r = a.r -. b.l} in
@@ -113,10 +113,10 @@ let minus x y =
 
 (* razy x y = {a * b : in_wartosc x a i in_wartosc y b} *)
 let razy x y =
-    (* pom a b = razy a b                                          *)
-    (* a i b są typu Jeden                                         *)
+    (* pom a b = razy (Jeden a) (Jeden b)                          *)
+    (* a i b są typu interval.                                     *)
     (* Jeżeli, zbiór (l, r) zawiera i ujemne, i dodatnie wartości, *)
-    (* to zostaje on podzielony na dwa zbiory: (l; -0.) i (0.; r)  *)
+    (* to zostaje on podzielony na dwa zbiory: (l; -0.) i (0.; r). *)
     let rec pom a b =
         if a = {l = 0.; r = 0.} || b = {l = 0.; r = 0.} then
             Jeden {l = 0.; r = 0.}
@@ -134,10 +134,10 @@ let razy x y =
 
 (* podzielic x y = {a / b : in_wartosc x a i in_wartosc y b} *)
 let podzielic x y =
-    (* pom a b = podzielic a b                                     *)
-    (* a i b są typu Jeden                                         *)
+    (* pom a b = podzielic (Jeden a) (Jeden b)                     *)
+    (* a i b są typu interval.                                     *)
     (* Jeżeli, zbiór (l, r) zawiera i ujemne, i dodatnie wartości, *)
-    (* to zostaje on podzielony na dwa zbiory: (l; -0.) i (0.; r)  *)
+    (* to zostaje on podzielony na dwa zbiory: (l; -0.) i (0.; r). *)
     let rec pom a b =
         if b = {l = 0.; r = 0.} then Pusty
         else if a = {l = 0.; r = 0.} then Jeden {l = 0.; r = 0.}
