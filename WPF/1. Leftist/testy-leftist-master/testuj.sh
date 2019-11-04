@@ -4,7 +4,7 @@ cd "$(dirname "$0")"
 
 echo Kompiluję Drzewa Lewicowe
 
-ocamlc -c leftist.mli ../leftist.ml
+ocamlc -c leftist.mli leftist.ml
 
 for f in tests/*.ml
 do
