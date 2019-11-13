@@ -37,7 +37,7 @@ let rec join q1 q2 =
                 Node (a_pri, new_r, a_l, npl a_l + 1)
             else
                 Node (a_pri, a_l, new_r, npl new_r + 1)
-    | Node _, Null -> q1
+    | _, Null -> q1
     | _, _ -> q2
 
 (* [add e q] zwraca kolejke powstala z dolaczenia elementu [e] *)
