@@ -171,6 +171,5 @@ assert(compare (sr_wartosc d) nan = 0);;
 assert(in_wartosc d (-3. /. 10. -. eps));;
 assert(not (in_wartosc d (-3. /. 10. +. eps)));;
 assert(max_wartosc d = infinity);;
-assert(min_wartosc d = neg_infinity);;
 
 *)
