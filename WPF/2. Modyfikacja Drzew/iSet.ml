@@ -24,25 +24,9 @@ let make l (a, b) r =
 
 exception Failure
 
-let rec bal s =
-    let left_rotation = function
-    | Empty -> raise Failure
-    | Node (l, x, y, r, _, _) ->
-        match r with
-        | Empty -> raise Failure
-        | Node (rl, rx, ry, rr, _, _) ->
-            make (make l (x, y) rl) (rx, ry) rr in
-
-    let right_rotation = function
-    | Empty -> raise Failure
-    | Node (l, x, y, r, _, _) ->
-        match l with
-        | Empty -> raise Failure
-        | Node (ll, lx, ly, lr, _, _) ->
-            make ll (lx, ly) (make lr (x, y) r) in
-
+let bal s =
     match s with
-    | Empty -> raise Failure
+    | Empty -> Empty
     | Node (l, x, y, r, _, _) ->
         let hl = height l
         and hr = height r in
@@ -51,16 +35,23 @@ let rec bal s =
             | Empty -> raise Failure
             | Node (ll, lx, ly, lr, _, _) ->
                 if height ll >= height lr then
-                    right_rotation s
+                    make ll (lx, ly) (make lr (x, y) r)
                 else
-                    make (left_rotation l) (x, y) r |> bal
+                    match lr with
+                    | Empty -> raise Failure
+                    | Node (lrl, lrx, lry, lrr, _, _) ->
+                        make (make ll (lx, ly) lrl) (lrx, lry) (make lrr (x, y) r)
         else if hr >= hl + 2 then
             match r with
             | Empty -> raise Failure
-            | Node (rl, _, _, rr, _, _) ->
-                if height rl = height rr + 1 then
-                    make l (x, y) (right_rotation r) |> bal
-                else left_rotation s
+            | Node (rl, rx, ry, rr, _, _) ->
+                if height rr >= height rl then
+                    make (make l (x, y) rl) (rx, ry) rr
+                else
+                    match rl with
+                    | Empty -> raise Failure
+                    | Node (rll, rlx, rly, rlr, _, _) ->
+                        make (make l (x, y) rll) (rlx, rly) (make rlr (rx, ry) rr)
         else s
 
 let rec mem x s =
@@ -95,104 +86,43 @@ let rec remove_max_element s =
     | Node (l, x, y, Empty, _, _) -> l
     | Node (l, x, y, r, _, _) -> make l (x, y) (remove_max_element r) |> bal
 
-let rec merge t1 t2 =
-    let rec merge_left (x, y) s t =
-        match t with
-        | Empty -> raise Failure
-        | Node (l, a, b, r, _, _) ->
-            if height l <= height s + 1 then
-                make (make s (x, y) l) (a, b) r |> bal
-            else
-                make (merge_left (x, y) s l) (a, b) r |> bal in
-    let rec merge_right (x, y) s t =
-        match t with
-        | Empty -> raise Failure
-        | Node (l, a, b, r, _, _) ->
-            if height r <= height s + 1 then
-                make l (a, b) (make r (x, y) s) |> bal
-            else
-                make l (a, b) (merge_right (x, y) s r) |> bal in
+(* (x, y) nie jest sąsiednie z drzewem *)
 
+let rec add_one (x, y) = function
+    | Empty ->
+        make empty (x, y) empty
+    | Node (l, a, b, r, _, _) ->
+        if y < a then
+            let new_l = add_one (x, y) l in
+            make new_l (a, b) r |> bal
+        else
+            let new_r = add_one (x, y) r in
+            make l (a, b) new_r |> bal
+
+(* t1 i t2 nie są sąsiednie *)
+let join t1 t2 =
+    let rec pom l (x, y) r =
+        match l, r with
+        | Empty, _ -> add_one (x, y) r
+        | _, Empty -> add_one (x, y) l
+        | Node (ll, lx, ly, lr, lh, _), Node (rl, rx, ry, rr, rh, _) ->
+            if rh > lh + 2 then
+                make (pom l (x, y) rl) (rx, ry) rr |> bal
+            else if lh > rh + 2 then
+                make ll (lx, ly) (pom lr (x, y) r) |> bal
+            else
+                make l (x, y) r in
 
     match t1, t2 with
-    | Empty, _ -> t2
+    | Empty, _-> t2
     | _, Empty -> t1
     | _ ->
-        let (a, b) = max_element t1
-        and (c, d) = min_element t2 in
-        if b > c then merge t2 t1 else
         if height t1 < height t2 then
             let (x, y) = max_element t1 in
-            let s = remove_max_element t1 in
-            merge_left (x, y) s t2
+            pom (remove_max_element t1) (x, y) t2
         else
             let (x, y) = min_element t2 in
-            let s = remove_min_element t2 in
-            merge_right (x, y) s t1
-
-let rec remove (x, y) s =
-    if y < x then s
-    else
-        match s with
-        | Empty -> Empty
-        | Node (l, a, b, r, _, _) ->
-            if y < a then
-                let new_l = remove (x, y) l
-                and new_r = merge (make empty (a, b) empty) r in
-                merge new_l new_r
-            else if b < x then
-                let new_l = merge l (make empty (a, b) empty)
-                and new_r = remove (x, y) r in
-                merge new_l new_r
-            else
-                let new_l = merge (remove (x, a - 1) l)
-                    (make empty (a, x - 1) empty)
-                and new_r = merge (make empty (y + 1, b) empty)
-                    (remove (b + 1, y) r) in
-                merge new_l new_r
-
-let rec add (x, y) s =
-    let rec fix t =
-        match t with
-        | Empty -> Empty
-        | Node (Empty, a, b, Empty, _, _) -> t
-        | Node (Empty, a, b, r, _, _) ->
-            let (e, f) = min_element r in
-            if b + 1 = e then
-                make empty (a, f) (remove_min_element r) |> bal
-            else t
-        | Node (l, a, b, Empty, _, _) ->
-            let (c, d) = max_element l in
-            if d = a - 1 then
-                make (remove_max_element l) (c, b) empty |> bal
-            else t
-        | Node (l, a, b, r, _, _) ->
-            let (c, d) = max_element l in
-            if d = a - 1 then
-                make (remove_max_element l) (c, b) r |> bal |> fix
-            else
-                let (e, f) = min_element r in
-                if b + 1 = e then
-                    make l (a, f) (remove_min_element r) |> bal
-                else t in
-
-    if y < x then s
-    else
-        match s with
-        | Empty -> make empty (x, y) empty
-        | Node (l, a, b, r, _, _) ->
-            if y < a then
-                make (add (x, y) l) (a, b) r |> bal |> fix
-            else if b < x then
-                make l (a, b) (add (x, y) r) |> bal |> fix
-            else if a <= x && y <= b then s
-            else if x < a && y <= b then
-                make (remove (x, a - 1) l) (x, b) r |> bal |> fix
-            else if a <= x && b < y then
-                make l (a, y) (remove (b + 1, y) r) |> bal |> fix
-            else
-                make (remove (x, a - 1) l) (x, y) (remove (b + 1, y) r) |> bal
-                    |> fix
+            pom t1 (x, y) (remove_min_element t2)
 
 let below n s =
     let rec pom _n _s =
@@ -216,185 +146,79 @@ let elements t =
     List.rev (pom [] t)
 
 let split x s =
-    let rec lesser acc y t =
-        match t with
-        | Empty -> acc
-        | Node (l, a, b, r, _, _) ->
-            if a <= y && y <= b then
-                merge acc (merge l (make empty (a, y - 1) empty))
-            else if y < a then
-                lesser acc y l
+    let rec loop = function
+    | Empty -> (Empty, Empty)
+    | Node (l, a, b, r, _, _) ->
+        if a <= x && x <= b then
+            if a = b then
+                (l, r)
+            else if a = x then
+                (l, join (make empty (x + 1, b) empty) r)
+            else if x = b then
+                (join l (make empty (a, x - 1) empty), r)
             else
-                merge (merge l (make empty (a, b) empty)) (lesser acc y r) in
-    let rec greater acc y t =
-        match t with
-        | Empty -> acc
-        | Node (l, a, b, r, _, _) ->
-            if a <= y && y <= b then
-                merge acc (merge (make empty (y + 1, b) empty) r)
-            else if b < y then
-                greater acc y r
-            else
-                merge (greater acc y l) (merge (make empty (a, b) empty) r) in
-    (lesser empty x s, mem x s, greater empty x s)
+                (join l (make empty (a, x - 1) empty),
+                join (make empty (x + 1, b) empty) r)
+        else if x < a then
+            let (t1, t2) = loop l in
+            (t1, join t2 (join (make empty (a, b) empty) r))
+        else
+            let (t1, t2) = loop r in
+            (join (join l (make empty (a, b) empty)) t1, t2) in
+    let (t1, t2) = loop s in
+    (t1, mem x s, t2)
 
-    (* Autor: Mateusz Gienieczko *)
+let add (x, y) s =
+    let (t1, _, _) = split x s
+    and (_, _, t2) = split y s in
+    match t1, t2 with
+    | Empty, Empty ->
+        make empty (x, y) empty
+    | Empty, _ ->
+        let (c, d) = min_element t2 in
+        if y + 1 = c then
+            join (make empty (x, d) empty) (remove_min_element t2)
+        else
+            join (make empty (x, y) empty) t2
+    | _, Empty ->
+        let (a, b) = max_element t1 in
+        if b = x - 1 then
+            join (remove_max_element t1) (make empty (a, y) empty)
+        else
+            join t1 (make empty (x, y) empty)
+    | _ ->
+        let (a, b) = max_element t1
+        and (c, d) = min_element t2 in
+        if b = x - 1 && c = y + 1 then
+            let new_l = remove_max_element t1
+            and new_r = remove_min_element t2 in
+            join (join new_l (make empty (a, d) empty)) new_r
+        else if b = x - 1 then
+            join (join (remove_max_element t1) (make empty (a, y) empty)) t2
+        else if y + 1 = c then
+            join t1 (join (make empty (x, d) empty) (remove_min_element t2))
+        else
+            join (join t1 (make empty (x, y) empty)) t2
 
-    let info = false;;
+let remove (x, y) s =
+    let (t1, _, _) = split x s
+    and (_, _, t2) = split y s in
+    match t1, t2 with
+    | Empty, _ -> t2
+    | _ ->
+        let (a, b) = max_element t1 in
+        join (join (remove_max_element t1) (make empty (a, b) empty)) t2
 
-    let simple l =
-      let (e, res) =
-        List.fold_left (fun ((px, py), la) (x, y) ->
-          if py + 1 >= x then ((px, max py y), la)
-          else ((x, y), (px, py)::la)) ((List.hd l), []) (List.tl l)
-      in
-      List.rev (e::res);;
 
-    let long l =
-      let rec add_inter acc (x, y) =
-        if x == y then x::acc
-        else add_inter (x::acc) (x + 1, y)
-      in
-      List.rev (List.fold_left (fun acc inter -> (add_inter [] inter) @ acc) [] l);;
+let iter f set =
+  let rec loop = function
+    | Empty -> ()
+    | Node (l, x, y, r, _, _) -> loop l; f (x, y); loop r in
+  loop set
 
-    let add_list =
-      List.fold_left (fun s x -> add x s);;
-
-    let mem_all a l1 =
-      List.filter (fun x -> not (mem x a)) l1 = []
-
-    let mem_none a l1 =
-      List.filter (fun x -> mem x a) l1 = []
-
-    (* Small correctness tests *)
-
-    let l1 = [(-10, -8); (-7, -7); (-4, -1); (1, 1); (3, 7); (10, 15); (100, 1000)];;
-    let a = add_list empty l1;;
-
-    assert(elements a = simple l1);;
-    assert(mem_all a (long l1));;
-    assert(below 1000 a = 921);;
-
-    let (a1, b, a2) = split 4 a;;
-    assert(b);;
-    assert(simple (elements a1 @ [(4, 4)] @ elements a2) = simple l1);;
-    assert(List.filter (fun (x, y) -> y >= 4) (elements a1) = []);;
-    assert(List.filter (fun (x, y) -> x <= 4) (elements a2) = []);;
-
-    let (a1, b, a2) = split 3 a;;
-    assert(b);;
-    assert(simple (elements a1 @ [(3, 3)] @ elements a2) = simple l1);;
-    assert(List.filter (fun (x, y) -> y >= 3) (elements a1) = []);;
-    assert(List.filter (fun (x, y) -> x <= 3) (elements a2) = []);;
-
-    let (a1, b, a2) = split 2 a;;
-    assert(not b);;
-    assert(simple(elements a1 @ elements a2) = simple l1);;
-    assert(List.filter (fun (x, y) -> y >= 2) (elements a1) = []);;
-    assert(List.filter (fun (x, y) -> x <= 2) (elements a2) = []);;
-
-    let b = add (1, 10) a;;
-    let l2 = List.sort (fun (x1, _) (x2, _) -> compare x1 x2) ((1, 10)::l1);;
-
-    assert(elements b = simple l2);;
-
-    let c = remove (1, 10) a;;
-    let d = remove (1, 10) b;;
-
-    assert(elements c = elements d);;
-
-    let e = add (min_int, max_int) a;;
-    assert(elements e = [(min_int, max_int)]);;
-    assert(below 1 e = max_int);;
-
-    let f = remove (min_int, max_int) a;;
-    assert(elements f = []);;
-
-    let l3 = [(16, 99); (2, 2); (8, 9); (-6, -5)];;
-    let g = add_list a l3;;
-    assert(elements g = [(-10, -1); (1, 1000)]);;
-    assert(not (mem 0 g));;
-    let h = remove (420, 690) g;;
-    assert(not (mem 500 h));;
-    assert(elements h = [(-10, -1); (1, 419); (691, 1000)]);;
-    let i = add (0, 0) g;;
-    assert(elements i = [(-10, 1000)]);;
-    let j = remove (-9, -1) i;;
-    assert(elements j = [(-10, -10); (0, 1000)]);;
-    let k = remove (500, 999) j;;
-    assert(elements k = [(-10, -10); (0, 499); (1000, 1000)]);;
-
-    (* Performance tests *)
-
-    let rec aux l i =
-      if i = 0 then l
-      else aux (i::l) (i - 1);;
-
-    let l1 = snd (List.fold_left (fun (i, l) _ -> (i + 3, (i, i + 1)::l)) (min_int, [])
-        (aux [] 100000));;
-
-    let l2 = snd (List.fold_left (fun (i, l) _ -> (i - 3, (i, i + 1)::l)) (max_int - 3, [])
-    	(aux [] 100000));;
-
-    let l3 = snd (List.fold_left (fun (i, l) _ -> (i + 3, (i, i + 1)::l)) (0, [])
-    	(aux [] 100000));;
-
-    let l4 = snd (List.fold_left (fun (i, l) _ -> (i - 3, (i, i + 1)::l)) (0, [])
-    	(aux [] 100000));;
-
-    if info then Pervasives.print_endline "Starting performence";;
-    let a = add_list empty l1;;
-    if info then Pervasives.print_endline "Added l1";;
-    let a = add_list a l1;;
-    if info then Pervasives.print_endline "Added l1";;
-    let a = add_list a l2;;
-    if info then Pervasives.print_endline "Added l2";;
-    let a = add_list a l2;;
-    if info then Pervasives.print_endline "Added l2";;
-    let a = add_list a l3;;
-    if info then Pervasives.print_endline "Added l3";;
-    let a = add_list a l3;;
-    if info then Pervasives.print_endline "Added l3";;
-    let a = add_list a l4;;
-    if info then Pervasives.print_endline "Added l4";;
-    let a = add_list a l4;;
-    if info then Pervasives.print_endline "Added l4";;
-
-    let test s (a, b) step i =
-      let rec aux s (x, y) i =
-        if i = 0 then s
-        else aux (remove (x, y) s) (x + step, y + step) (i - 1)
-      in
-      aux s (a, b) i;;
-
-    test a (min_int + 1, min_int + 10000) 2 100000;;
-    if info then Pervasives.print_endline "Test 1";;
-    test a (max_int / 2, max_int / 2 + 10000) 2 100000;;
-    if info then Pervasives.print_endline "Test 2";;
-    test a (min_int + 10000, max_int / 2) 2 100000;;
-    if info then Pervasives.print_endline "Test 3";;
-    test a (max_int / 2, max_int - 1000000) 2 100000;;
-    if info then Pervasives.print_endline "Test 4";;
-    test a (max_int - 10000000, max_int - 1000000) 2 100000;;
-    if info then Pervasives.print_endline "Test 5";;
-
-    remove (min_int, max_int) a;;
-    if info then Pervasives.print_endline "Starting add";;
-    for i = 0 to 10000 do
-      (fun _ -> ()) (add (min_int + i, max_int - i) a);
-    done;;
-
-    if info then Pervasives.print_endline "Starting remove";;
-    for i = 0 to 10000 do
-      (fun _ -> ()) (remove (min_int + i, max_int - i) a)
-    done;;
-
-    if info then Pervasives.print_endline "Starting split";;
-    for i = 0 to 10000 do
-      (fun _ -> ()) (split (min_int + i) a)
-    done;;
-
-    if info then Pervasives.print_endline "Starting below";;
-    for i = 0 to 10000 do
-      (fun _ -> ()) (below (min_int + i) a)
-    done;;
+let fold f set acc =
+  let rec loop acc = function
+    | Empty -> acc
+    | Node (l, x, y, r, _, _) ->
+          loop (f (x, y) (loop acc l)) r in
+  loop acc set

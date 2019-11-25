@@ -75,7 +75,7 @@ test 67 (mem 4 l) true;;
 test 68 (mem 11 r) false;;
 test 69 (mem 16 r) true;;
 
-
+(*
 let s = add (1, 1) (add (11, 14) (add (6, 9) (add (4, 5) empty)));;
 let a = ref [];;
 let foo x = a := x::!a; ();;
@@ -92,4 +92,4 @@ let _ =
         ()
     else
         Printf.printf "\nZlych odpowiedzi: %d.\n" !zle
-;;
+;;*)
