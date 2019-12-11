@@ -1,8 +1,8 @@
-(* Zadanie: Origami      *)
-(* Autor: Janusz Partyka *)
-(* Code review: TBD      *)
+(* Zadanie: Origami           *)
+(* Autor: Janusz Partyka      *)
+(* Code review: Marcin Brojek *)
 
-(* Punkt na płaszczyźnie *)
+(* Typ punktu na płaszczyźnie *)
 type point = float * float
 
 (* Typ poskładanej kartki: ile razy kartkę przebije szpilka wbita *)
@@ -13,10 +13,10 @@ type kartka = point -> int
 let eps = 1e-9
 
 (* Procedura zwracająca x^2 *)
-let sq x = x *. x
+let square x = x *. x
 
 (* Wyjątek podnoszony, gdy rogi prostokąta są w złym porządku *)
-exception Bad_coordinates
+exception Bad_rectangle
 
 (* [prostokat p1 p2] zwraca kartkę, reprezentująca domknięty prostokąt       *)
 (* o bokach równoległych do osi ukłądu współrzędnych i lewym dolnym rogu     *)
@@ -24,21 +24,21 @@ exception Bad_coordinates
 (* i w dół od punktu [p2]. Gdy w kartkę tę wbije się szpilkę wewnątrz        *)
 (* (lub na krawędziach) prostokąta, kartka zostanie przebita 1 raz, w.p.p. 0 *)
 let prostokat ((a, b) : point) ((c, d) : point) =
-    let inside ((x, y) : point) =
+    let inside (x, y) =
         a -. x <= eps && x -. c <= eps && b -. y <= eps && y -. d <= eps in
-    if c < a || d < b then raise Bad_coordinates
+    if c < a || d < b then raise Bad_rectangle
     else (fun p -> if inside p then 1 else 0 : kartka)
 
-(* Wyjątek podnoszony, gdy długość promienia koła jest nie większa od 0 *)
-exception Bad_radius
+(* Wyjątek podnoszony, gdy długość promienia koła jest niedodatnia. *)
+exception Bad_circle
 
 (* [kolko p r] zwraca kartkę reprezentującą kółko domknięte o środku      *)
 (* w punkcie [(a, b)] i promieniu [r]. Gdy w kartkę tę wbije się szpilkę  *)
 (* wewnątrz (lub na brzegu) koła, kartka zostanie przebita 1 raz, w.p.p 0 *)
 let kolko ((a, b) : point) r =
-    let inside ((x, y) : point) =
-        sq (x -. a) +. sq(y -. b) -. sq r <= eps in
-    if r <= 0. then raise Bad_radius
+    let inside (x, y) =
+        square (x -. a) +. square (y -. b) -. square r <= eps in
+    if r <= 0. then raise Bad_circle
     else (fun p -> if inside p then 1 else 0 : kartka)
 
 (* [zloz p1 p2 k] składa kartkę [k] wzdłuż prostej przechodzącej przez punkty *)
@@ -51,7 +51,7 @@ let kolko ((a, b) : point) r =
 (* rozłożonej kartki w punkcie, który nałożył się na punkt przebicia.         *)
 let zloz (p1 : point) (p2 : point) (k : kartka) =
     (* Operator odejmujący dwa punkty *)
-    let (-^) ((a, b) : point) ((c, d) : point) =
+    let (-^) (a, b) (c, d) =
         ((a -. c, b -. d) : point) in
 
     (* Procedura zwracająca współczynniki a, b, c prostej ax + by + c = 0 *)
@@ -63,7 +63,7 @@ let zloz (p1 : point) (p2 : point) (k : kartka) =
     (* przechodzącej przez punkty p1 i p2                          *)
     let reflect (p, q) p1 p2 =
         let (a, b, c) = line p1 p2 in
-        let (a2, b2) = (sq a, sq b) in
+        let (a2, b2) = (square a, square b) in
         let x = (p *. (b2 -. a2) -. 2. *. a *. (b *. q +. c)) /. (a2 +. b2)
         and y = (q *. (a2 -. b2) -. 2. *. b *. (a *. p +. c)) /. (a2 +. b2) in
         (x, y) in
@@ -78,7 +78,7 @@ let zloz (p1 : point) (p2 : point) (k : kartka) =
         else if cr > 0. then k p + k (reflect p p1 p2)
         else 0 : kartka)
 
-(* [skladaj [(p1_1, p2_1); ... ;(p1_n, p2_n)] k =                           *)
+(* [skladaj [(p1_1, p2_1); ...; (p1_n, p2_n)] k =                           *)
 (*     zloz p1_n p2_n (zloz ... (zloz p1_1 p2_1 k)...)]                     *)
 (* czyli wynikiem jest złożenie kartki [k] kolejno wzdłuż prostych z listy. *)
 let skladaj (l : (point * point) list) (k : kartka) =
